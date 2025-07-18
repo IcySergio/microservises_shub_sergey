@@ -1,0 +1,86 @@
+
+
+services:
+  # ─────────────────────────────── 1. Postgres ──────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: svc_db
+    restart: unless-stopped
+
+    ports:
+      - "5432:5432"
+
+    environment:
+      POSTGRES_USER:     ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB:       ${POSTGRES_DB}
+
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
+      interval: 10s
+      retries: 5
+
+  # ──────────────────────────── 2. Alembic миграции ─────────────────────────
+  db_admin:
+    build:
+      context: .
+      dockerfile: db_admin/Dockerfile
+    container_name: svc_db_admin
+    env_file: .env
+    profiles: ["migrate"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ───────────────────────────── 3. Сервис Corpuses ─────────────────────────
+  corpuses:
+    build:
+      context: .                  # корень проекта
+      dockerfile: corpuses/Dockerfile
+    container_name: svc_corpuses
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8001:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ────────────────────────────── 4. Сервис Search ──────────────────────────
+  search:
+    build:
+      context: .
+      dockerfile: search/Dockerfile
+    container_name: svc_search
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8002:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      corpuses:
+        condition: service_started
+
+  # ──────────────────────────── 5. Сервис Task Manager ──────────────────────
+  tasks:
+    build:
+      context: .
+      dockerfile: tasks/Dockerfile
+    container_name: svc_tasks
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8003:8000"     
+    depends_on:
+      db:
+        condition: service_healthy
+      corpuses:
+        condition: service_started
+
+# ────────────────────────────── 6. Том для Postgres ─────────────────────────
+volumes:
+  pgdata:

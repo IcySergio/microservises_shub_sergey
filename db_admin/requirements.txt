@@ -1,0 +1,6 @@
+SQLAlchemy>=2.0
+asyncpg
+alembic
+pydantic-settings
+psycopg[binary]
+python-Levenshtein
